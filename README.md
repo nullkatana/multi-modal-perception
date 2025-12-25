@@ -14,6 +14,11 @@ This project implements a ROS 2-based sensor fusion system that combines infrare
 - Data recording and playback (ROS bag support)
 - Synchronized sensor simulation
 
+### System in Action
+
+![RViz2 Visualization](images/rviz_demo.png)
+*Real-time 3D visualization showing point cloud (colored by height), IR sensor cone, and detected objects*
+
 ## Project Structure
 
 ```
