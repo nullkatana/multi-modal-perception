@@ -1,4 +1,4 @@
-# Infrared Object Detection
+# Multi Modal Perception
 
 ## Project Overview
 
@@ -18,7 +18,7 @@ This project implements a ROS 2-based sensor fusion system that combines infrare
 ## Project Structure
 
 ```
-infrared_object_detection/
+multi_modal_perception/
 ├── venv/                      # Python virtual environment
 ├── src/                       # Source code for ROS 2 nodes
 │   ├── ir_sensor_simulator.py       # IR distance sensor simulation
@@ -27,8 +27,12 @@ infrared_object_detection/
 │   ├── object_tracker.py            # Kalman filter tracking
 │   ├── tf_broadcaster.py            # TF transforms for visualization
 │   ├── shared_object_state.py       # Shared state for sensor synchronization
-│   └── metrics_logger.py            # Performance metrics tracking
+│   ├── metrics_logger.py            # Performance metrics tracking
 │   ├── trajectory_visualizer.py     # Trajectory visualization markers
+│   ├── nir_sensor_simulator.py      # Near-infrared distance sensor
+│   ├── tof_array_simulator.py       # Time-of-Flight 8×8 depth array
+│   ├── lidar_simulator.py           # 360° laser scanner (LiDAR)
+│   └── multi_sensor_fusion.py       # Advanced multi-sensor fusion detector
 ├── notebooks/                 # Jupyter notebooks for analysis (demonstration examples)
 ├── data/                      # Reserved for recorded sensor data (currently empty)
 ├── docs/                      # Reserved for additional documentation (currently empty)
@@ -43,16 +47,20 @@ infrared_object_detection/
 
 ## System Architecture
 
-The system consists of eight independent ROS 2 nodes that communicate via topics:
+The system consists of twelve independent ROS 2 nodes that communicate via topics:
 
 1. **Shared Object State** - Publishes synchronized object position for all sensors
-2. **IR Sensor Simulator** - Subscribes to object state, publishes distance measurements
-3. **Point Cloud Generator** - Subscribes to object state, creates 3D scenes
-4. **Object Detector** - Fuses sensor streams using DBSCAN clustering
-5. **Object Tracker** - Tracks objects over time with Kalman filtering (v1.2)
-6. **Trajectory Visualizer** - Displays tracking predictions and history in RViz2 (v1.2)
-7. **TF Broadcaster** - Provides coordinate frame transforms
-8. **Metrics Logger** - Tracks and logs detection performance
+2. **IR Sensor Simulator** - Infrared distance sensor (0.1-3.0m range)
+3. **NIR Sensor Simulator** - Near-infrared sensor (better fog penetration, 0.15-3.5m range) (v1.3)
+4. **ToF Array Simulator** - 8×8 Time-of-Flight depth grid (0.05-4.0m, 64 measurements) (v1.3)
+5. **LiDAR Simulator** - 360° laser scanner (0.05-25m range, 360 points) (v1.3)
+6. **Point Cloud Generator** - 3D scene generation (simulates RGB-D camera)
+7. **Object Detector** - 2-sensor fusion (IR + Point Cloud) using DBSCAN
+8. **Multi-Sensor Fusion** - Advanced 5-sensor fusion with weighted algorithm (v1.3)
+9. **Object Tracker** - Kalman filter tracking with velocity estimation (v1.2)
+10. **Trajectory Visualizer** - RViz2 markers for trajectories and predictions (v1.2)
+11. **TF Broadcaster** - Coordinate frame transforms for all sensors
+12. **Metrics Logger** - Performance tracking and CSV logging
 
 ### ROS 2 Topics
 
@@ -62,6 +70,10 @@ The system consists of eight independent ROS 2 nodes that communicate via topics
 - `/detections/objects` (std_msgs/String) - JSON-formatted detection results
 - `/tracking/objects` (std_msgs/String) - Tracked objects with IDs and velocities (v1.2)
 - `/tracking/visualization` (visualization_msgs/MarkerArray) - Trajectory markers for RViz2 (v1.2)
+- `/nir_sensor/range` (sensor_msgs/Range) - NIR distance measurements (v1.3)
+- `/tof_array/pointcloud` (sensor_msgs/PointCloud2) - ToF 8×8 depth grid (v1.3)
+- `/lidar/scan` (sensor_msgs/LaserScan) - 360° laser scan data (v1.3)
+- `/fusion/detections` (std_msgs/String) - Multi-sensor fusion results (v1.3)
 
 ## Prerequisites
 
@@ -108,8 +120,8 @@ sudo apt install ros-humble-rviz2 ros-humble-rviz-default-plugins -y
 
 ```bash
 # Clone or create project directory
-mkdir -p ~/infrared_object_detection
-cd ~/infrared_object_detection
+mkdir -p ~/multi_modal_perception
+cd ~/multi_modal_perception
 
 # Create project structure
 mkdir -p src notebooks data docs
@@ -128,7 +140,7 @@ pip install -r requirements.txt
 
 ### 4. Copy Project Files
 
-Place all Python files from the `src/` directory into your `~/infrared_object_detection/src/` folder and make them executable:
+Place all Python files from the `src/` directory into your `~/multi_modal_perception/src/` folder and make them executable:
 
 ```bash
 chmod +x src/*.py
@@ -140,15 +152,27 @@ chmod +x src/*.py
 
 **Start all nodes with one command:**
 ```bash
-cd ~/infrared_object_detection
+cd ~/multi_modal_perception
 ./start_system.sh
 ```
 
-This automatically starts all nodes (shared object state, IR sensor, point cloud generator, object detector, object tracker, TF broadcaster, metrics logger).
+This automatically starts all 12 nodes:
+- Shared Object State
+- IR Sensor Simulator
+- NIR Sensor Simulator (v1.3)
+- ToF Array Simulator (v1.3)
+- LiDAR Simulator (v1.3)
+- Point Cloud Generator
+- Object Detector (2-sensor fusion)
+- Multi-Sensor Fusion (5-sensor fusion) (v1.3)
+- Object Tracker
+- Trajectory Visualizer
+- TF Broadcaster
+- Metrics Logger
 
 **Then open RViz2 in a separate terminal:**
 ```bash
-cd ~/infrared_object_detection
+cd ~/multi_modal_perception
 source venv/bin/activate
 source /opt/ros/humble/setup.bash
 rviz2
@@ -164,7 +188,7 @@ If you prefer to run nodes separately for debugging:
 
 **Terminal 1 - IR Sensor:**
 ```bash
-cd ~/infrared_object_detection
+cd ~/multi_modal_perception
 source venv/bin/activate
 source /opt/ros/humble/setup.bash
 python3 src/ir_sensor_simulator.py
@@ -172,7 +196,7 @@ python3 src/ir_sensor_simulator.py
 
 **Terminal 2 - Point Cloud Generator:**
 ```bash
-cd ~/infrared_object_detection
+cd ~/multi_modal_perception
 source venv/bin/activate
 source /opt/ros/humble/setup.bash
 python3 src/pointcloud_generator.py
@@ -180,7 +204,7 @@ python3 src/pointcloud_generator.py
 
 **Terminal 3 - Object Detector:**
 ```bash
-cd ~/infrared_object_detection
+cd ~/multi_modal_perception
 source venv/bin/activate
 source /opt/ros/humble/setup.bash
 python3 src/object_detector.py
@@ -188,7 +212,7 @@ python3 src/object_detector.py
 
 **Terminal 4 - TF Broadcaster:**
 ```bash
-cd ~/infrared_object_detection
+cd ~/multi_modal_perception
 source venv/bin/activate
 source /opt/ros/humble/setup.bash
 python3 src/tf_broadcaster.py
@@ -196,7 +220,7 @@ python3 src/tf_broadcaster.py
 
 **Terminal 5 - RViz2 Visualization:**
 ```bash
-cd ~/infrared_object_detection
+cd ~/multi_modal_perception
 source venv/bin/activate
 source /opt/ros/humble/setup.bash
 rviz2
@@ -247,6 +271,38 @@ To see tracked object trajectories, predictions, and motion:
 
 The visualization updates in real-time as objects move and are tracked.
 
+### Multi-Sensor Visualization (v1.3)
+
+The system now includes 4 different sensor types for comprehensive environmental perception:
+
+#### Adding Additional Sensors to RViz2:
+
+**1. NIR Sensor (Near-Infrared):**
+- Click "Add" → "By topic" → `/nir_sensor/range` → `Range`
+- Set color to blue to distinguish from IR (red)
+- Shows distance measurements with lower noise than IR
+
+**2. ToF Array (Time-of-Flight Depth Grid):**
+- Click "Add" → "By topic" → `/tof_array/pointcloud` → `PointCloud2`
+- Shows 8×8 grid of 64 distance measurements
+- Useful for structured depth sensing
+- Set "Size (m)" to 0.03 for visibility
+
+**3. LiDAR (360° Laser Scanner):**
+- Click "Add" → "By topic" → `/lidar/scan` → `LaserScan`
+- Shows circular scan pattern around sensor
+- Yellow "frisbee" circle at max range (25m) is normal
+- Small clusters of points indicate detected objects
+- Set "Size (m)" to 0.05 and "Style" to "Spheres"
+
+**Sensor Comparison:**
+| Sensor | Type | Range | Update Rate | Field of View | Use Case |
+|--------|------|-------|-------------|---------------|----------|
+| IR | Single-point | 0.1-3.0m | 10 Hz | 5.7° cone | General distance |
+| NIR | Single-point | 0.15-3.5m | 12 Hz | 4.6° cone | Fog/dust penetration |
+| ToF Array | 64-point grid | 0.05-4.0m | 20 Hz | 45°×45° | Depth imaging |
+| LiDAR | 360° scan | 0.05-25m | 10 Hz | 360° horizontal | SLAM, navigation |
+
 ### Viewing Detection Results
 
 In any terminal with the environment activated:
@@ -288,7 +344,7 @@ Tracking data includes:
 
 **Record sensor data:**
 ```bash
-cd ~/infrared_object_detection
+cd ~/multi_modal_perception
 ./record_data.sh
 ```
 
@@ -333,6 +389,32 @@ The metrics include:
 - Synchronized with shared object state (v1.1)
 - Objects move smoothly with realistic physics (v1.2)
 - Publishes at 5 Hz
+
+**NIR Sensor (v1.3):**
+- Near-infrared distance sensor
+- Range: 0.15m to 3.5m (longer than IR)
+- Lower noise: σ = 1.5cm (more accurate)
+- Better penetration through fog, dust, and smoke
+- Faster update rate: 12 Hz
+- Narrower field of view for focused measurement
+
+**ToF Array (v1.3):**
+- Time-of-Flight 8×8 depth sensor (64 measurement points)
+- Range: 0.05m to 4.0m
+- Very fast: 20 Hz update rate
+- Wide field of view: 45° × 45°
+- Creates structured depth image
+- Real-world equivalent: VL53L5CX sensor
+- Use cases: Gesture recognition, collision avoidance
+
+**LiDAR (v1.3):**
+- 360° rotating laser scanner
+- Range: 0.05m to 25m (longest range)
+- Resolution: 1° (360 points per scan)
+- Update rate: 10 Hz
+- Horizontal plane scanning (2D LiDAR)
+- Real-world equivalent: SICK TiM571, RPLIDAR A1
+- Use cases: SLAM, navigation, obstacle detection
 
 ### Object Detection Algorithm
 
@@ -379,6 +461,38 @@ The tracker uses Kalman filtering to maintain object identity and estimate motio
 - Max missed frames: 5 (delete track after 5 consecutive misses)
 - Min hits: 3 (confirm track after 3 detections)
 
+### Multi-Sensor Fusion (v1.3)
+
+The advanced fusion detector combines measurements from all 5 sensor sources:
+
+**Fusion Algorithm:**
+- **Weighted Combination** - Each sensor has confidence weight based on characteristics
+- **DBSCAN Clustering** - Applied to point cloud sources (ToF + main point cloud)
+- **Distance Averaging** - IR, NIR, and LiDAR distances combined with weighted average
+- **Confidence Scoring** - More sensors agreeing = higher detection confidence
+
+**Sensor Weights:**
+- IR: 1.0 (baseline)
+- NIR: 1.2 (more accurate, better conditions)
+- ToF: 1.5 (structured data, high update rate)
+- LiDAR: 1.3 (long range, wide coverage)
+- Point Cloud: 2.0 (richest 3D information)
+
+**How It Works:**
+1. All sensors detect the same synchronized object
+2. IR/NIR provide single-point distance measurements
+3. ToF provides 64-point depth grid
+4. LiDAR provides 360° scan with distance at each angle
+5. Point cloud provides full 3D structure
+6. Fusion combines all data with weighted average
+7. Publishes to `/fusion/detections` with confidence score
+
+**Benefits:**
+- **Redundancy** - System works even if sensors fail
+- **Accuracy** - Multiple measurements reduce error
+- **Robustness** - Different sensor types cover different scenarios
+- **Confidence** - Know how reliable each detection is
+
 ## Technical Notes
 
 ### Sensor Synchronization (v1.1)
@@ -415,6 +529,11 @@ The metrics logger tracks system performance in real-time:
 - TF Broadcaster: 10 Hz broadcast rate
 - Metrics Logger: 0.2 Hz (every 5 seconds)
 - Trajectory Visualizer: 2 Hz update rate (v1.2)
+- NIR Sensor: 12 Hz update rate (v1.3)
+- ToF Array: 20 Hz update rate (v1.3)
+- LiDAR: 10 Hz scan rate (v1.3)
+- Multi-Sensor Fusion: 2 Hz processing rate (v1.3)
+- TF Broadcaster: 50 Hz broadcast rate (v1.3 - increased for multi-sensor)
 
 ## Troubleshooting
 
@@ -437,6 +556,16 @@ The metrics logger tracks system performance in real-time:
 - Restart WSL with `wsl --shutdown`
 - Ensure you're using Windows 11 with WSLg support
 
+**LiDAR timing errors in RViz2:**
+- Increase TF broadcast rate to 50 Hz (already configured in v1.3)
+- Errors like "extrapolation into the future" are cosmetic, system still works
+- If persistent, check that `tf_broadcaster.py` timer is set to `0.02` (50 Hz)
+
+**ToF or NIR not visible in RViz2:**
+- Ensure TF broadcaster is running and broadcasting all sensor frames
+- Check topic list with `ros2 topic list` to verify sensors are publishing
+- For ToF: Disable main point cloud temporarily to see 64-point grid clearly
+
 ## Future Enhancements
 
 Potential improvements and extensions:
@@ -448,8 +577,11 @@ Potential improvements and extensions:
 - [x] Multiple simultaneous object detection (v1.1 - DBSCAN clustering)
 - [x] Object tracking with Kalman filtering (v1.2)
 - [x] Trajectory prediction and visualization (v1.2)
-- [ ] Machine learning-based object classification
-- [ ] Integration with real hardware sensors
+- [x] Multi-sensor integration (IR, NIR, ToF, LiDAR) (v1.3)
+- [x] Advanced sensor fusion with weighted algorithm (v1.3)
+- [ ] Machine learning-based object classification (v1.4)
+- [ ] Real hardware integration (Arduino, sensors modules) (v2.0)
+- [ ] Multi-sensor comparison studies for thesis research
 
 ## Documentation
 
@@ -485,4 +617,4 @@ The AI served as an educational tool and development accelerator. All code has b
 **Author:** Yooh Brito
 **Date:** December 2025  
 **ROS 2 Version:** Humble Hawksbill  
-**Status:** v1.2 - Object tracking with Kalman filtering and trajectory visualization
+**Status:** v1.3 - Multi-sensor fusion system with IR, NIR, ToF, LiDAR, and point cloud integration
