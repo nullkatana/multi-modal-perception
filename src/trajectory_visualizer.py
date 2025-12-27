@@ -26,6 +26,14 @@ class TrajectoryVisualizer(Node):
             10
         )
         
+        # Subscribe to ML classifications
+        self.classification_subscription = self.create_subscription(
+            String,
+            'classified/objects',
+            self.classification_callback,
+            10
+        )
+        
         # Publisher for visualization markers
         self.marker_publisher = self.create_publisher(
             MarkerArray,
@@ -37,13 +45,24 @@ class TrajectoryVisualizer(Node):
         self.trajectories = {}  # track_id -> list of positions
         self.max_trajectory_length = 50  # Keep last 50 positions
         
+        # Store latest ML classification
+        self.latest_classification = None
+        
         # Prediction parameters
         self.prediction_horizon = 3.0  # Predict 3 seconds ahead
         self.prediction_steps = 10  # Number of prediction points
         
         self.get_logger().info('Trajectory Visualizer started!')
         self.get_logger().info(f'Prediction horizon: {self.prediction_horizon}s')
+        self.get_logger().info('Listening for ML classifications...')
         
+    def classification_callback(self, msg):
+        """Store latest ML classification"""
+        try:
+            self.latest_classification = json.loads(msg.data)
+        except json.JSONDecodeError:
+            pass
+    
     def tracking_callback(self, msg):
         """Process tracking data and create visualizations"""
         try:
@@ -109,6 +128,13 @@ class TrajectoryVisualizer(Node):
                 marker_array.markers.append(
                     self.create_text_marker(track_id, position, marker_id)
                 )
+                
+                # 6. ML Classification label (NEW!)
+                if self.latest_classification is not None:
+                    marker_id += 1
+                    marker_array.markers.append(
+                        self.create_classification_marker(track_id, position, marker_id)
+                    )
             
             # Publish all markers
             self.marker_publisher.publish(marker_array)
@@ -280,6 +306,46 @@ class TrajectoryVisualizer(Node):
         
         return marker
     
+    def create_classification_marker(self, track_id, position, marker_id):
+        """Create text marker showing ML classification (NEW!)"""
+        marker = Marker()
+        marker.header.frame_id = 'world'
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = 'ml_labels'
+        marker.id = marker_id
+        marker.type = Marker.TEXT_VIEW_FACING
+        marker.action = Marker.ADD
+        
+        marker.pose.position.x = float(position[0])
+        marker.pose.position.y = float(position[1])
+        marker.pose.position.z = float(position[2]) + 0.5  # Higher above object
+        
+        # Format classification text
+        predicted_class = self.latest_classification.get('predicted_class', 'unknown')
+        confidence = self.latest_classification.get('confidence', 0.0)
+        
+        marker.text = f"{predicted_class.upper()} ({confidence:.1%})"
+        
+        marker.scale.z = 0.2  # Slightly larger text
+        
+        # Color based on shape
+        shape_colors = {
+            'sphere': (0.0, 1.0, 1.0),   # Cyan
+            'box': (1.0, 0.5, 0.0),      # Orange
+            'cylinder': (0.5, 1.0, 0.0), # Yellow-green
+            'cone': (1.0, 0.0, 1.0)      # Magenta
+        }
+        
+        color = shape_colors.get(predicted_class, (1.0, 1.0, 1.0))
+        marker.color.r = color[0]
+        marker.color.g = color[1]
+        marker.color.b = color[2]
+        marker.color.a = 1.0
+        
+        marker.lifetime.sec = 1
+        
+        return marker
+    
     def get_track_color(self, track_id):
         """Get consistent color for track ID"""
         colors = [
@@ -296,8 +362,8 @@ class TrajectoryVisualizer(Node):
         """Clear all markers"""
         marker_array = MarkerArray()
         
-        # Delete all marker namespaces
-        for ns in ['positions', 'velocities', 'trajectories', 'predictions', 'labels']:
+        # Delete all marker namespaces (including new ml_labels)
+        for ns in ['positions', 'velocities', 'trajectories', 'predictions', 'labels', 'ml_labels']:
             marker = Marker()
             marker.header.frame_id = 'world'
             marker.ns = ns

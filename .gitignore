@@ -32,3 +32,21 @@ data/*.db3
 data/*.bag
 data/recording_*
 *.csv
+
+# ML Training Data (v1.4) - Can be regenerated
+data/training_dataset/
+data/training_dataset/**/*.db3
+data/training_dataset/**/*.npy
+
+# ML Models (v1.4) - Large binary files
+models/*.pth
+models/*.pt
+models/*.onnx
+models/*.h5
+
+# Training logs
+*.log
+
+# Notebooks output (if generated)
+notebooks/*.html
+notebooks/*.pdf

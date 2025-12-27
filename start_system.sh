@@ -1,9 +1,9 @@
 #!/bin/bash
 # Multi-Sensor Object Detection System - Launch Script
-# Starts all ROS 2 nodes for the sensor fusion system
+# Starts all ROS 2 nodes for the sensor fusion system with ML classification
 
 echo "================================================"
-echo "  Multi-Sensor Object Detection System"
+echo "  Multi-Sensor Object Detection System v1.4"
 echo "  Starting all nodes..."
 echo "================================================"
 
@@ -88,6 +88,10 @@ echo "Starting Metrics Logger..."
 python3 src/metrics_logger.py &
 PID_METRICS=$!
 
+echo "Starting ML Object Classifier..."
+python3 src/ml_object_classifier.py &
+PID_ML=$!
+
 # Wait a moment for nodes to start
 sleep 3
 
@@ -109,6 +113,7 @@ echo "  - Object Tracker (PID: $PID_TRACKER)"
 echo "  - Trajectory Visualizer (PID: $PID_VIZ)"
 echo "  - TF Broadcaster (PID: $PID_TF)"
 echo "  - Metrics Logger (PID: $PID_METRICS)"
+echo "  - ML Object Classifier (PID: $PID_ML) 🤖"
 echo ""
 echo "Data Sources (4 sensors + scene representation):"
 echo "  Sensors:"
@@ -119,11 +124,19 @@ echo "    • LiDAR (360° scan, 10Hz)"
 echo "  Scene:"
 echo "    • Point Cloud (3D scene, 5Hz)"
 echo ""
+echo "ML Classification:"
+echo "  • Real-time shape recognition (2Hz)"
+echo "  • Classes: sphere, box, cylinder, cone"
+echo "  • Topic: /classified/objects"
+echo ""
 echo "To visualize, run in another terminal:"
 echo "  cd ~/multi_modal_perception"
 echo "  source venv/bin/activate"
 echo "  source /opt/ros/humble/setup.bash"
 echo "  rviz2"
+echo ""
+echo "To view ML classifications:"
+echo "  ros2 topic echo /classified/objects"
 echo ""
 echo "Press Ctrl+C to stop all nodes"
 echo "================================================"

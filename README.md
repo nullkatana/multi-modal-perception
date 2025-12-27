@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This project implements a ROS 2-based sensor fusion system that combines infrared (IR) distance sensors with 3D point cloud data for object detection. The system demonstrates computer vision, sensor integration, and robotics workflows through simulated sensors - no physical hardware required.
+This project implements a comprehensive ROS 2-based multi-sensor perception system that combines classical sensor fusion with deep learning for robust object detection, tracking, and classification. The system integrates four sensor modalities (IR, NIR, ToF array, LiDAR) with 3D point cloud data, employing DBSCAN clustering for detection, Kalman filtering for tracking, and a PointNet neural network for real-time shape recognition. Built entirely with simulated sensors, it demonstrates advanced computer vision, sensor integration, and machine learning workflows without requiring physical hardware - ideal for research, prototyping, and education in robotics perception systems.
 
 **Key Features:**
 - Simulated IR distance sensor with realistic noise
@@ -14,13 +14,16 @@ This project implements a ROS 2-based sensor fusion system that combines infrare
 - Performance metrics tracking and logging
 - Data recording and playback (ROS bag support)
 - Synchronized sensor simulation
+- Deep learning object classification using PointNet architecture
+- Synthetic dataset generation for ML training
+- Real-time shape recognition (sphere, box, cylinder, cone)
 
 ## Demo
 
 ### System Startup
 ![Terminal with all nodes starting](images/terminal.png)
 
-*All 12 nodes launching with synchronized sensors*
+*All 13 nodes launching with synchronized sensors*
 
 ### Topic List
 ![Output showing all topics](images/ros2_topics.png)
@@ -49,6 +52,12 @@ This project implements a ROS 2-based sensor fusion system that combines infrare
 
 *Multi-sensor fusion with weighted confidence scoring*
 
+### Shape Classification and Tracking GIF
+![Detection JSON output](images/tracking_and_tag.gif)
+
+*PointNet-based shape classification and tracking example*
+
+
 ## Project Structure
 
 ```
@@ -56,20 +65,29 @@ multi_modal_perception/
 ├── venv/                      # Python virtual environment
 ├── src/                       # Source code for ROS 2 nodes
 │   ├── ir_sensor_simulator.py       # IR distance sensor simulation
-│   ├── pointcloud_generator.py      # 3D point cloud generation
-│   ├── object_detector.py           # Sensor fusion and detection (DBSCAN)
-│   ├── object_tracker.py            # Kalman filter tracking
-│   ├── tf_broadcaster.py            # TF transforms for visualization
-│   ├── shared_object_state.py       # Shared state for sensor synchronization
-│   ├── metrics_logger.py            # Performance metrics tracking
-│   ├── trajectory_visualizer.py     # Trajectory visualization markers
 │   ├── nir_sensor_simulator.py      # Near-infrared distance sensor
 │   ├── tof_array_simulator.py       # Time-of-Flight 8×8 depth array
 │   ├── lidar_simulator.py           # 360° laser scanner (LiDAR)
-│   └── multi_sensor_fusion.py       # Advanced multi-sensor fusion detector
-├── notebooks/                 # Jupyter notebooks for analysis (demonstration examples)
-├── data/                      # Reserved for recorded sensor data (currently empty)
-├── docs/                      # Reserved for additional documentation (currently empty)
+│   ├── pointcloud_generator.py      # 3D point cloud generation (4 shapes)
+│   ├── shared_object_state.py       # Shared state for sensor synchronization
+│   ├── object_detector.py           # Sensor fusion and detection (DBSCAN)
+│   ├── multi_sensor_fusion.py       # Advanced multi-sensor fusion detector
+│   ├── object_tracker.py            # Kalman filter tracking with direction reversal handling
+│   ├── ml_object_classifier.py      # ML shape classification using PointNet (v1.4)
+│   ├── trajectory_visualizer.py     # Trajectory visualization with ML labels
+│   ├── tf_broadcaster.py            # TF transforms for visualization
+│   └── metrics_logger.py            # Performance metrics tracking
+├── scripts/                   # ML training utilities (v1.4)
+│   ├── generate_dataset.py          # Synthetic dataset generator
+│   └── train_model.py               # Neural network training script
+├── notebooks/                 # Jupyter notebooks for analysis
+├── data/                      # Sensor data and training datasets
+│   ├── training_dataset/            # Generated ML training data (Generated)
+│   └── metrics_log.csv              # Performance logs (Generated)
+├── models/                    # Trained neural network models
+│   └── object_classifier.pth        # Trained PointNet weights (Generated)
+├── images/                    # Screenshots and gifs
+├── docs/                      # Additional documentation
 ├── .gitignore                 # Git ignore file
 ├── LICENSE                    # MIT License
 ├── README.md                  # This file
@@ -81,7 +99,7 @@ multi_modal_perception/
 
 ## System Architecture
 
-The system consists of twelve independent ROS 2 nodes that communicate via topics:
+The system consists of thirteen independent ROS 2 nodes that communicate via topics:
 
 1. **Shared Object State** - Publishes synchronized object position for all sensors
 2. **IR Sensor Simulator** - Infrared distance sensor (0.1-3.0m range)
@@ -91,10 +109,11 @@ The system consists of twelve independent ROS 2 nodes that communicate via topic
 6. **Point Cloud Generator** - 3D scene generation (simulates RGB-D camera)
 7. **Object Detector** - 2-sensor fusion (IR + Point Cloud) using DBSCAN
 8. **Multi-Sensor Fusion** - Advanced 5-sensor fusion with weighted algorithm (v1.3)
-9. **Object Tracker** - Kalman filter tracking with velocity estimation (v1.2)
+9. **Object Tracker** - Kalman filter tracking with direction reversal detection (v1.4)
 10. **Trajectory Visualizer** - RViz2 markers for trajectories and predictions (v1.2)
 11. **TF Broadcaster** - Coordinate frame transforms for all sensors
 12. **Metrics Logger** - Performance tracking and CSV logging
+13. **ML Object Classifier** - PointNet-based shape classification at 2 Hz (v1.4)
 
 ### ROS 2 Topics
 
@@ -108,12 +127,13 @@ The system consists of twelve independent ROS 2 nodes that communicate via topic
 - `/tof_array/pointcloud` (sensor_msgs/PointCloud2) - ToF 8×8 depth grid (v1.3)
 - `/lidar/scan` (sensor_msgs/LaserScan) - 360° laser scan data (v1.3)
 - `/fusion/detections` (std_msgs/String) - Multi-sensor fusion results (v1.3)
+- `/classified/objects` (std_msgs/String) - ML classification results with confidence scores (v1.4)
 
 ## Prerequisites
 
 - **Operating System:** Windows 11 with WSL 2 (Ubuntu 22.04)
 - **ROS 2:** Humble Hawksbill
-- **Python:** 3.10+
+- **Python:** 3.10+ with PyTorch for ML classification
 - **VSCode:** With WSL extension (recommended)
 
 ## Installation
@@ -190,7 +210,7 @@ cd ~/multi_modal_perception
 ./start_system.sh
 ```
 
-This automatically starts all 12 nodes:
+This automatically starts all 13 nodes:
 - Shared Object State
 - IR Sensor Simulator
 - NIR Sensor Simulator (v1.3)
@@ -203,6 +223,7 @@ This automatically starts all 12 nodes:
 - Trajectory Visualizer
 - TF Broadcaster
 - Metrics Logger
+- ML Object Classifier (v1.4)
 
 **Then open RViz2 in a separate terminal:**
 ```bash
@@ -336,6 +357,90 @@ The system now includes 4 different sensor types for comprehensive environmental
 | NIR | Single-point | 0.15-3.5m | 12 Hz | 4.6° cone | Fog/dust penetration |
 | ToF Array | 64-point grid | 0.05-4.0m | 20 Hz | 45°×45° | Depth imaging |
 | LiDAR | 360° scan | 0.05-25m | 10 Hz | 360° horizontal | SLAM, navigation |
+
+### Machine Learning Classification (v1.4)
+
+The system includes a deep learning classifier for real-time object shape recognition:
+
+**PointNet Architecture:**
+- Simplified PointNet for point cloud classification
+- Input: 200 points × 3 coordinates
+- Conv1D feature extraction layers (3→64→128→256)
+- Global max pooling for permutation invariance
+- Fully connected classification head
+- Output: 4 classes (sphere, box, cylinder, cone)
+
+**Training Pipeline:**
+1. **Dataset Generation** (`scripts/generate_dataset.py`)
+   - Generates 1000+ synthetic samples
+   - 250 samples per shape class
+   - Saves to `data/training_dataset/`
+   - Normalized and resampled to 200 points
+
+2. **Model Training** (`scripts/train_model.py`)
+   - 80/20 train/test split
+   - 50 epochs with Adam optimizer
+   - Learning rate scheduling
+   - Saves best model to `models/object_classifier.pth`
+   - Achieves 90%+ accuracy on synthetic data
+
+3. **Real-time Classification** (`src/ml_object_classifier.py`)
+   - Loads trained model weights
+   - Subscribes to point cloud and object state
+   - Classifies at 2 Hz
+   - Publishes predictions with confidence scores
+
+**Generating Training Data:**
+```bash
+cd ~/multi_modal_perception
+source venv/bin/activate
+source /opt/ros/humble/setup.bash
+
+# Start system first
+./start_system.sh
+
+# In another terminal, generate dataset
+python3 scripts/generate_dataset.py
+```
+
+**Training the Model:**
+```bash
+cd ~/multi_modal_perception
+source venv/bin/activate
+python3 scripts/train_model.py
+```
+
+Training takes 5-10 minutes on CPU and outputs:
+- Training/test accuracy per epoch
+- Final confusion matrix
+- Per-class accuracy metrics
+
+**Viewing ML Classifications:**
+```bash
+# View live classifications
+ros2 topic echo /classified/objects
+
+# Example output:
+{
+  "predicted_class": "box",
+  "confidence": 0.9623,
+  "probabilities": {
+    "box": 0.9623,
+    "cylinder": 0.0245,
+    "sphere": 0.0098,
+    "cone": 0.0034
+  }
+}
+```
+
+**RViz2 Visualization:**
+ML predictions appear as colored text labels above tracked objects:
+- Higher label shows shape + confidence: "BOX (96.2%)"
+- Color-coded by shape:
+  - Sphere: Cyan
+  - Box: Orange
+  - Cylinder: Yellow-green
+  - Cone: Magenta
 
 ### Viewing Detection Results
 
@@ -555,19 +660,23 @@ The metrics logger tracks system performance in real-time:
 
 ### Performance
 
-- Shared Object State: 1 Hz update rate
-- IR Sensor: 10 Hz update rate
-- Point Cloud: 5 Hz update rate
-- Object Detector: 2 Hz processing rate
-- Object Tracker: 2 Hz update rate (v1.2)
-- TF Broadcaster: 10 Hz broadcast rate
+**Sensor Simulators:**
+- Shared Object State: 1 Hz
+- IR Sensor: 10 Hz
+- NIR Sensor: 12 Hz
+- ToF Array: 20 Hz (fastest sensor)
+- LiDAR: 10 Hz
+- Point Cloud Generator: 5 Hz
+
+**Processing Nodes:**
+- Object Detector (2-sensor): 2 Hz
+- Multi-Sensor Fusion (5-source): 2 Hz
+- Object Tracker (Kalman): 2 Hz
+- Trajectory Visualizer: 2 Hz
+
+**System Infrastructure:**
+- TF Broadcaster: 50 Hz (increased in v1.3 for multi-sensor support)
 - Metrics Logger: 0.2 Hz (every 5 seconds)
-- Trajectory Visualizer: 2 Hz update rate (v1.2)
-- NIR Sensor: 12 Hz update rate (v1.3)
-- ToF Array: 20 Hz update rate (v1.3)
-- LiDAR: 10 Hz scan rate (v1.3)
-- Multi-Sensor Fusion: 2 Hz processing rate (v1.3)
-- TF Broadcaster: 50 Hz broadcast rate (v1.3 - increased for multi-sensor)
 
 ## Troubleshooting
 
@@ -613,7 +722,7 @@ Potential improvements and extensions:
 - [x] Trajectory prediction and visualization (v1.2)
 - [x] Multi-sensor integration (IR, NIR, ToF, LiDAR) (v1.3)
 - [x] Advanced sensor fusion with weighted algorithm (v1.3)
-- [ ] Machine learning-based object classification (v1.4)
+- [x] Machine learning-based object classification (v1.4)
 - [ ] Real hardware integration (Arduino, sensors modules) (v2.0)
 - [ ] Multi-sensor comparison studies for thesis research
 
@@ -651,4 +760,4 @@ The AI served as an educational tool and development accelerator. All code has b
 **Author:** Yooh Brito
 **Date:** December 2025  
 **ROS 2 Version:** Humble Hawksbill  
-**Status:** v1.3 - Multi-sensor fusion system with IR, NIR, ToF, LiDAR, and point cloud integration
+**Status:** v1.4 - Multi-sensor fusion with deep learning object classification
